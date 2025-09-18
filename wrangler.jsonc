@@ -10,7 +10,7 @@
 	],
 	"observability": { "enabled": true },
 	"d1_databases": [
-		{ "binding": "DB", "database_id": "23d74290-3df2-4fd0-b32e-a2eeb2ad9f76", "database_name": "prod-d1-painter-database" }
+		{ "binding": "DB", "database_id": "23d74290-3df2-4fd0-b32e-a2eeb2ad9f76", "database_name": "prod-d1-painter-data" }
 	],
 	"analytics_engine_datasets": [
 		{ "binding": "ANALYTICS_EVENTS", "dataset": "analytics_events" }
@@ -45,5 +45,4 @@
 		// Allows runtime code to know environment (dev vs prod) if needed
 		"ENVIRONMENT": "production"
 	}
-	// "services": []
 }
