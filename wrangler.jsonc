@@ -1,5 +1,5 @@
 {
-	"name": "painter-tools",
+	"name": "dependablepainting",
 	"main": "src/index.js",
 	"compatibility_date": "2025-08-29",
 	// Directory for static assets served via app.use('*', serveStatic())

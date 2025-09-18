@@ -35,8 +35,9 @@ async function handleEstimate(env, request) {
     ip: request.headers.get('CF-Connecting-IP') || '',
     ua: request.headers.get('User-Agent') || ''
   };
-  if (!leadData.name || !leadData.city || !leadData.service || !leadData.message || (!leadData.phone && !leadData.email)) {
-    return json({ error: 'Missing required fields.' }, 400);
+  // Validation: only require name and phone now. Other fields optional.
+  if (!leadData.name || !leadData.phone) {
+    return json({ error: 'Name and phone are required.' }, 400);
   }
   let insertMeta;
   try {

@@ -271,17 +271,17 @@
         <label for="name">Name:</label>
         <input type="text" id="name" name="name" placeholder="Your Full Name" required />
 
-        <label for="email">Email:</label>
-        <input type="email" id="email" name="email" placeholder="your@email.com" />
+  <label for="email">Email (optional):</label>
+  <input type="email" id="email" name="email" placeholder="your@email.com" />
 
-        <label for="phone">Phone:</label>
-        <input type="tel" id="phone" name="phone" placeholder="(123) 456-7890" />
+  <label for="phone">Phone (required):</label>
+  <input type="tel" id="phone" name="phone" placeholder="(123) 456-7890" required />
 
-        <label for="city">City:</label>
-        <input type="text" id="city" name="city" placeholder="City (e.g., Daphne)" required />
+  <label for="city">City (optional):</label>
+  <input type="text" id="city" name="city" placeholder="City (e.g., Daphne)" />
 
-        <label for="service">Service of Interest:</label>
-        <select id="service" name="service" required>
+  <label for="service">Service of Interest (optional):</label>
+  <select id="service" name="service">
           <option value="">-- Please Select --</option>
           <option value="interior-painting">Interior Painting</option>
           <option value="exterior-painting">Exterior Painting</option>
@@ -290,8 +290,8 @@
           <option value="other">Other</option>
         </select>
 
-        <label for="message">Message:</label>
-        <textarea id="message" name="message" rows="5" placeholder="Tell us about your project..." required></textarea>
+  <label for="message">Message (optional):</label>
+  <textarea id="message" name="message" rows="5" placeholder="Tell us about your project..."></textarea>
 
         <button type="submit">Get My Estimate</button>
       </form>
@@ -355,11 +355,12 @@
           });
 
           if (r.ok) {
+            const result = await r.json().catch(() => ({}));
             if (typeof gtag === 'function') {
               gtag('event', 'generate_lead', { event_category: 'Lead', event_label: 'Contact Form', value: 1 });
             }
             if (window.dpSend) window.dpSend('form_submit', { ok: true });
-            window.location.href = '/thank-you';
+            window.location.href = result.redirect || '/thank-you';
           } else {
             const result = await r.json().catch(() => ({}));
             responseDiv.textContent = result.error || 'Submission failed. Please try again.';
