@@ -249,18 +249,40 @@
 </head>
 
 <body>
+  <a href="#contact-form" class="skip-link" style="position:absolute;left:-999px;top:0;background:#000;color:#fff;padding:.5rem 1rem;z-index:1000;">Skip to Form</a>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5SHM99TL" height="0" width="0"
       style="display:none;visibility:hidden"></iframe></noscript>
 
   <header>
     <div class="brand">
-      <a href="/">
+      <a href="/" aria-label="Dependable Painting Home">
         <img src="https://imagedelivery.net/VwxTcpKX2CusqbCCDB94Nw/7c414308-e0a9-4da3-dd68-f9c4a6ed9800/icon512"
-          alt="Dependable Painting Logo">
+          alt="Dependable Painting Logo" width="40" height="40">
+        <span>Dependable Painting</span>
       </a>
-      <span>Dependable Painting</span>
+    </div>
+    <div class="nav-icons" style="display:flex;align-items:center;gap:1rem;">
+      <a href="tel:+12512891347" title="Call Us" aria-label="Call Us"><i class="fas fa-phone"></i></a>
+      <a href="https://g.page/r/CQjqan_iFBshEAE" target="_blank" rel="noopener noreferrer" title="Find us on Google" aria-label="Find us on Google"><i class="fab fa-google"></i></a>
+      <div class="hamburger" onclick="toggleMenu()" aria-label="Open menu" aria-expanded="false" aria-controls="mobileMenu" style="cursor:pointer;width:28px;display:flex;flex-direction:column;justify-content:space-between;height:20px;">
+        <span style="display:block;height:3px;background:#fff;border-radius:2px;"></span>
+        <span style="display:block;height:3px;background:#fff;border-radius:2px;"></span>
+        <span style="display:block;height:3px;background:#fff;border-radius:2px;"></span>
+      </div>
     </div>
   </header>
+  <nav class="menu" id="mobileMenu" aria-hidden="true" aria-label="Mobile navigation" style="position:fixed;inset:0;display:none;flex-direction:column;padding:5rem 2rem;background:#000;z-index:9998;">
+    <div class="close-btn" onclick="toggleMenu()" aria-label="Close menu" style="position:absolute;top:1rem;right:1.2rem;font-size:2rem;cursor:pointer;">×</div>
+    <a href="/" style="color:#fff; padding:.75rem 0; text-decoration:none;">Home</a>
+    <a href="/about.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">About Us</a>
+    <a href="/services.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Services</a>
+    <a href="/interior-painting.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Interior Painting</a>
+    <a href="/exterior-painting.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Exterior Painting</a>
+    <a href="/cabinet-painting.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Cabinet Painting</a>
+    <a href="/commercial-painting.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Commercial Painting</a>
+    <a href="/contact-form.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Contact</a>
+    <a href="/privacy.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Privacy Policy</a>
+  </nav>
 
   <main>
     <section id="contact-form-section">
@@ -275,7 +297,8 @@
   <input type="email" id="email" name="email" placeholder="your@email.com" />
 
   <label for="phone">Phone (required):</label>
-  <input type="tel" id="phone" name="phone" placeholder="(123) 456-7890" required />
+  <input type="tel" id="phone" name="phone" placeholder="(123) 456-7890" required pattern="[0-9\-\(\)\s\+]{7,20}" aria-describedby="phoneHelp" />
+  <small id="phoneHelp" style="display:block;margin-top:-1rem;margin-bottom:1rem;color:#888;font-size:.75rem;">Digits only; formatting characters allowed.</small>
 
   <label for="city">City (optional):</label>
   <input type="text" id="city" name="city" placeholder="City (e.g., Daphne)" />
@@ -291,7 +314,11 @@
         </select>
 
   <label for="message">Message (optional):</label>
-  <textarea id="message" name="message" rows="5" placeholder="Tell us about your project..."></textarea>
+        <textarea id="message" name="message" rows="5" placeholder="Tell us about your project..."></textarea>
+        <div style="position:absolute;left:-5000px;top:auto;width:1px;height:1px;overflow:hidden;">
+          <label for="company">Company</label>
+          <input type="text" id="company" name="company" tabindex="-1" autocomplete="off" />
+        </div>
 
         <button type="submit">Get My Estimate</button>
       </form>

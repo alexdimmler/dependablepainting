@@ -33,8 +33,18 @@ async function handleEstimate(env, request) {
     utm_campaign: body.utm_campaign || '',
     gclid: body.gclid || '',
     ip: request.headers.get('CF-Connecting-IP') || '',
-    ua: request.headers.get('User-Agent') || ''
+    ua: request.headers.get('User-Agent') || '',
+    hp: (body.company || '').trim() // honeypot field
   };
+  // Honeypot: silently succeed to not tip off bots.
+  if (leadData.hp) {
+    return json({ ok: true, success: true, lead_id: undefined, redirect: env.THANK_YOU_URL || '/thank-you' });
+  }
+  // Normalize phone (digits only) and basic length check (7-15 digits)
+  leadData.phone = leadData.phone.replace(/[^0-9]/g, '');
+  if (leadData.phone && (leadData.phone.length < 7 || leadData.phone.length > 15)) {
+    return json({ error: 'Invalid phone number.' }, 400);
+  }
   // Validation: only require name and phone now. Other fields optional.
   if (!leadData.name || !leadData.phone) {
     return json({ error: 'Name and phone are required.' }, 400);

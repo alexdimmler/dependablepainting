@@ -226,11 +226,28 @@
     <header>
       <div class="brand">
         <a href="/">
-          <img src="https://imagedelivery.net/VwxTcpKX2CusqbCCDB94Nw/7c414308-e0a9-4da3-dd68-f9c4a6ed9800/icon512" alt="Dependable Painting Logo" />
+          <img src="https://imagedelivery.net/VwxTcpKX2CusqbCCDB94Nw/7c414308-e0a9-4da3-dd68-f9c4a6ed9800/icon512" alt="Dependable Painting Logo" loading="lazy" />
         </a>
         <span>Dependable Painting</span>
       </div>
+      <div class="nav-icons" style="display:flex;align-items:center;gap:1rem;">
+        <a href="tel:+12512891347" title="Call Us" aria-label="Call Us"><i class="fas fa-phone"></i></a>
+        <a href="https://g.page/r/CQjqan_iFBshEAE" target="_blank" rel="noopener noreferrer" title="Find us on Google" aria-label="Find us on Google"><i class="fab fa-google"></i></a>
+        <div class="hamburger" onclick="toggleMenu()" aria-label="Open menu" aria-expanded="false" aria-controls="mobileMenu" style="cursor:pointer;width:28px;display:flex;flex-direction:column;justify-content:space-between;height:20px;">
+          <span style="display:block;height:3px;background:#fff;border-radius:2px;"></span>
+          <span style="display:block;height:3px;background:#fff;border-radius:2px;"></span>
+          <span style="display:block;height:3px;background:#fff;border-radius:2px;"></span>
+        </div>
+      </div>
     </header>
+  <nav class="menu" id="mobileMenu" aria-hidden="true" aria-label="Mobile navigation" style="position:fixed;inset:0;display:none;flex-direction:column;padding:5rem 2rem;background:#000;z-index:9998;">
+      <div class="close-btn" onclick="toggleMenu()" aria-label="Close menu" style="position:absolute;top:1rem;right:1.2rem;font-size:2rem;cursor:pointer;">×</div>
+      <a href="/" style="color:#fff; padding:.75rem 0; text-decoration:none;">Home</a>
+      <a href="/about.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">About Us</a>
+      <a href="/services.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Services</a>
+      <a href="/contact-form.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Contact</a>
+      <a href="/privacy.html" style="color:#fff; padding:.75rem 0; text-decoration:none;">Privacy Policy</a>
+    </nav>
 
     <main>
       <nav class="breadcrumb" aria-label="Breadcrumb">
