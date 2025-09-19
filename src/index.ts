@@ -1,22 +1,52 @@
-// Cloudflare Email (only if bound) — safe optional import
-// eslint-disable-next-line import/no-unresolved
-import { EmailMessage } from 'cloudflare:email';
+// Cloudflare Email optional: removed direct import to avoid build error when 'cloudflare:email' types unavailable.
 
 // Simple utility to build JSON Response
-function json(data, status = 200, headers = {}) {
+function json(
+  data: unknown,
+  status: number = 200,
+  headers: Record<string, string> = {}
+): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers }
   });
 }
 
-async function parseJSON(request) {
-  try { return await request.json(); } catch (_) { return null; }
+async function parseJSON<T = unknown>(request: Request): Promise<T | null> {
+  try { return await request.json() as T; } catch (_) { return null; }
 }
 
-async function handleEstimate(env, request) {
-  const body = await parseJSON(request);
-  if (!body) return json({ error: 'Invalid JSON' }, 400);
+interface LeadEventBody {
+  // shared lead / event / tracking fields
+  name?: string;
+  email?: string;
+  phone?: string;
+  city?: string;
+  zip?: string;
+  service?: string;
+  page?: string;
+  session?: string;
+  source?: string;
+  description?: string;
+  message?: string;
+  company?: string;
+  device?: string;
+  country?: string;
+  area?: string;
+  referrer?: string;
+  type?: string;
+  scroll_pct?: number | string;
+  duration_ms?: number | string;
+  ts?: string;
+  // marketing params
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  gclid?: string;
+}
+
+async function handleEstimate(env: Env, request: Request) {
+  const body = (await parseJSON<LeadEventBody>(request)) || {};
   const leadData = {
     name: (body.name || '').trim(),
     email: (body.email || '').trim(),
@@ -93,13 +123,10 @@ async function handleEstimate(env, request) {
       ].join('\n');
       const from = env.FROM_ADDR || 'no-reply@dependablepainting.work';
       const to = env.ADMIN_EMAIL || env.OWNER_EMAIL || env.TO_ADDR || 'just-paint-it@dependablepainting.work';
+      // Unified send (avoid EmailMessage class to prevent import error)
       try {
-        const msg = new EmailMessage(from, to, subject);
-        msg.setBody('text/plain', text);
-        await env.SEB.send(msg);
-      } catch (inner) {
-        try { await env.SEB.send({ from, to, subject, content: text }); } catch (_) {}
-      }
+        await env.SEB.send({ from, to, subject, content: text });
+      } catch (_) { /* swallow admin email errors */ }
     }
   } catch (e) {
     console.warn('Admin email send failed', e); // eslint-disable-line no-console
@@ -111,12 +138,8 @@ async function handleEstimate(env, request) {
       const html = `<p>Hi ${leadData.name || 'there'},</p><p>We received your request and will be in touch within the hour.</p><p>If you need us now, call <strong>(251) 525-4405</strong>.</p><p>— ${env.SITE_NAME || 'Dependable Painting'}</p>`;
       const fromAddr = env.FROM_ADDR || 'no-reply@dependablepainting.work';
       try {
-        const msg = new EmailMessage(fromAddr, to, subject);
-        msg.setBody('text/html', html);
-        await env.SEB.send(msg);
-      } catch (inner) {
-        try { await env.SEB.send({ from: fromAddr, to, subject, html }); } catch (_) {}
-      }
+        await env.SEB.send({ from: fromAddr, to, subject, html });
+      } catch (_) { /* swallow auto-reply errors */ }
     }
   } catch (e) {
     console.warn('Auto-reply email send failed', e); // eslint-disable-line no-console
@@ -126,9 +149,8 @@ async function handleEstimate(env, request) {
 }
 
 // Generic form submission (lightweight, stores as lead_events type=form_submit and optionally email notify)
-async function handleForm(env, request) {
-  const body = await parseJSON(request);
-  if (!body) return json({ error: 'Invalid JSON' }, 400);
+async function handleForm(env: Env, request: Request) {
+  const body = (await parseJSON<LeadEventBody>(request)) || {};
   const ts = new Date().toISOString();
   const page = (body.page || '/').toString().slice(0, 300);
   const session = (body.session || '').toString().slice(0, 120);
@@ -165,9 +187,8 @@ async function handleForm(env, request) {
 }
 
 // Call event (e.g., phone click) stored as type=click_call
-async function handleCall(env, request) {
-  const body = await parseJSON(request);
-  if (!body) return json({ error: 'Invalid JSON' }, 400);
+async function handleCall(env: Env, request: Request) {
+  const body = (await parseJSON<LeadEventBody>(request)) || {};
   const ts = new Date().toISOString();
   try {
     await env.DB.prepare(
@@ -200,23 +221,23 @@ async function handleCall(env, request) {
 }
 
 // Basic stats aggregation (last 30 days counts by type and total leads)
-async function handleStats(env) {
-  const thirty = new Date(Date.now() - 30*24*3600*1000).toISOString();
+async function handleStats(env: Env) {
+  const thirty = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   try {
     const events = await env.DB.prepare(
       `SELECT type, COUNT(*) as cnt FROM lead_events WHERE ts >= ? GROUP BY type ORDER BY cnt DESC`
-    ).bind(thirty).all();
+    ).bind(thirty).all<{ type: string; cnt: number }>(); // added generic
     const leads = await env.DB.prepare(
       `SELECT COUNT(*) as cnt FROM leads WHERE rowid IN (SELECT id FROM leads WHERE 1)`
-    ).all();
-    return json({ ok: true, event_counts: events.results || [], total_leads: (leads.results?.[0]?.cnt)||0 });
+    ).all<{ cnt: number }>(); // added generic
+    return json({ ok: true, event_counts: events.results || [], total_leads: (leads.results?.[0]?.cnt) || 0 });
   } catch (e) {
     return json({ error: 'db error' }, 500);
   }
 }
 
 // Chat history fetch (last N messages for a session)
-async function handleChatHistory(env, request) {
+async function handleChatHistory(env: Env, request: Request) {
   const url = new URL(request.url);
   const session = url.searchParams.get('session') || '';
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 100);
@@ -231,9 +252,8 @@ async function handleChatHistory(env, request) {
   }
 }
 
-async function handleChat(env, request) {
-  const body = await parseJSON(request);
-  if (!body) return json({ error: 'Invalid JSON' }, 400);
+async function handleChat(env: Env, request: Request) {
+  const body = (await parseJSON<LeadEventBody>(request)) || {};
   const userMsg = (body.message || '').toString().slice(0, 8000);
   if (!userMsg) return json({ error: 'message required' }, 400);
   const systemPrompt = `You are Paint Guru, the expert operator and assistant for Dependable Painting. You:
@@ -299,19 +319,19 @@ async function handleChat(env, request) {
         request.headers.get('User-Agent') || '',
         body.page || ''
       ).run();
-    } catch (e) {}
+    } catch (e) { }
     return json({ reply });
   } catch (e) {
-    return json({ error: `ai_fail:${e.message}` }, 502);
+    const msg = e instanceof Error ? e.message : String(e);
+    return json({ error: `ai_fail:${msg}` }, 502);
   }
 }
 
 // Tracking event ingestion
 // Accepts: { type, page?, service?, source?, device?, city?, country?, zip?, area?, session?, scroll_pct?, duration_ms?, referrer?, utm_source?, utm_medium?, utm_campaign?, gclid?, ts? }
 // If ts omitted, server time used. Stores row in lead_events and optionally forwards lightweight event to GA4.
-async function handleTrack(env, request) {
-  const body = await parseJSON(request);
-  if (!body) return json({ error: 'Invalid JSON' }, 400);
+async function handleTrack(env: Env, request: Request) {
+  const body = (await parseJSON<LeadEventBody>(request)) || {};
   const clientTs = typeof body.ts === 'string' ? body.ts : null;
   const now = clientTs ? new Date(clientTs) : new Date();
   const iso = now.toISOString();
@@ -396,7 +416,7 @@ async function handleTrack(env, request) {
   const measurement_id = 'G-CLK9PTRD5N';
   const api_secret = env.GA4_API_SECRET || '';
   const client_id = body.session || crypto.randomUUID();
-  const ga4Params = {
+  const ga4Params: Record<string, unknown> = {
     page_location: record.page || 'https://dependablepainting.work',
     page_referrer: record.referrer || '',
     session_id: record.session || '',
@@ -406,7 +426,9 @@ async function handleTrack(env, request) {
     zip: record.zip,
     area: record.area
   };
-  Object.keys(ga4Params).forEach(k => ga4Params[k] === undefined && delete ga4Params[k]);
+  for (const k in ga4Params) {
+    if (ga4Params[k] === undefined) delete ga4Params[k];
+  }
   const ga4Payload = { client_id, events: [{ name: body.type || 'event', params: ga4Params }] };
   try {
     if (api_secret) {
@@ -417,14 +439,14 @@ async function handleTrack(env, request) {
         return json({ error: `GA4 error: ${resp.status} ${tx.slice(0, 300)}` }, 502);
       }
     }
-  } catch (e) {}
+  } catch (e) { }
   return json({ ok: true });
 }
 
 // Not implemented placeholder JSON helper
 function notImpl() { return json({ success: false, message: 'Not implemented yet' }, 501); }
 
-async function serveStaticAsset(env, pathname) {
+async function serveStaticAsset(env: Env, pathname: string) {
   // Try to map to public directory (simple implementation using manifest-less fetch).
   let filePath = pathname === '/' ? '/index.html' : pathname;
   if (!filePath.includes('.')) {
@@ -439,18 +461,59 @@ async function serveStaticAsset(env, pathname) {
   return new Response('Not Found', { status: 404 });
 }
 
+interface EmailService {
+  send(payload: { from: string; to: string; subject: string; content?: string; html?: string }): Promise<any>;
+}
+
+// Minimal D1 type stubs (remove if you install @cloudflare/workers-types)
+interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement;
+  first<T = unknown>(): Promise<T | null>;
+  all<T = unknown>(): Promise<{ results: T[]; success: boolean; meta: any }>;
+  run<T = unknown>(): Promise<{ success: boolean; meta: any }>;
+}
+interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+}
+
+interface Env {
+  DB: D1Database;
+  DB_2?: D1Database;
+  SEB?: EmailService;
+  AI?: { run(opts: any): Promise<any> };
+  AI_MODEL?: string;
+  AI_TEMP?: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
+  OPENAI_TEMP?: string;
+  THANK_YOU_URL?: string;
+  FROM_ADDR?: string;
+  ADMIN_EMAIL?: string;
+  OWNER_EMAIL?: string;
+  TO_ADDR?: string;
+  SITE_NAME?: string;
+  GA4_API_SECRET?: string;
+}
+
+// Minimal fallback definition for Cloudflare Workers ExecutionContext to satisfy TypeScript
+// Remove if you add:  npm i -D @cloudflare/workers-types  and a /// <reference types="@cloudflare/workers-types" />
+interface ExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+  passThroughOnException?(): void;
+}
+
 export default {
-  async fetch(request, env, ctx) { // eslint-disable-line no-unused-vars
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) { // eslint-disable-line no-unused-vars
     const { pathname } = new URL(request.url);
     const method = request.method.toUpperCase();
 
     // API routing
     if (pathname === '/api/estimate' && method === 'POST') return handleEstimate(env, request);
-  if (pathname === '/api/form' && method === 'POST') return handleForm(env, request);
-  if (pathname === '/api/call' && method === 'POST') return handleCall(env, request);
-  if (pathname === '/api/stats' && method === 'GET') return handleStats(env);
-  if (pathname === '/api/chat/history' && method === 'GET') return handleChatHistory(env, request);
-  if (pathname === '/api/event' && method === 'POST') return handleTrack(env, request); // alias
+    if (pathname === '/api/form' && method === 'POST') return handleForm(env, request);
+    if (pathname === '/api/call' && method === 'POST') return handleCall(env, request);
+    if (pathname === '/api/stats' && method === 'GET') return handleStats(env);
+    if (pathname === '/api/chat/history' && method === 'GET') return handleChatHistory(env, request);
+    if (pathname === '/api/event' && method === 'POST') return handleTrack(env, request); // alias
     if (pathname.startsWith('/api/lead/') && method === 'GET') {
       // /api/lead/:id
       const id = pathname.split('/').pop();
@@ -489,11 +552,11 @@ export default {
       }
     }
     if (pathname === '/api/chat' && method === 'POST') return handleChat(env, request);
-  if (pathname === '/api/charge' && method === 'POST') return notImpl();
-  if (pathname === '/api/track' && method === 'POST') return handleTrack(env, request);
+    if (pathname === '/api/charge' && method === 'POST') return notImpl();
+    if (pathname === '/api/track' && method === 'POST') return handleTrack(env, request);
     if (pathname === '/api/lead-status' && method === 'POST') return notImpl();
     if (pathname === '/api/job' && method === 'POST') return notImpl();
-  // legacy placeholders replaced above for stats & call
+    // legacy placeholders replaced above for stats & call
     if (pathname === '/api/geo/classify' && method === 'GET') return notImpl();
     if (pathname === '/api/health' && method === 'GET') return json({ ok: true, ts: Date.now() });
 
