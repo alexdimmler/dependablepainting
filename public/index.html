@@ -61,24 +61,30 @@
       --card-shadow-hover: 0 8px 20px rgba(255, 59, 59, 0.4);
     }
 
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
+    html { box-sizing: border-box; }
 
     body {
+      margin: 0;
+      padding: 0;
       font-family: Arial, sans-serif;
       background: #000;
       color: var(--text-light);
       line-height: 1.6;
     }
+
+    h1,h2,h3,h4,h5,h6,
+    p,
+    ul,ol,li,
+    figure,figcaption,
+    blockquote,
+    dl,dd {
+      margin: 0;
+      padding: 0;
+    }
+
+    img,picture,video,canvas,svg { display: block; max-width: 100%; }
+
+    button,input,textarea,select { font: inherit; }
 
     header {
       background: var(--dark-bg);
@@ -876,16 +882,49 @@
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5SHM99TL" height="0" width="0"
       style="display:none;visibility:hidden"></iframe></noscript>
 
-  <header>
-    <div class="brand">
-      <a href="/" aria-label="Dependable Painting Home">
-        <img src="https://imagedelivery.net/VwxTcpKX2CusqbCCDB94Nw/7c414308-e0a9-4da3-dd68-f9c4a6ed9800/icon512" alt="Dependable Painting Logo" width="40" height="40">
-        <span>Dependable Painting</span>
+<header>
+  <div class="brand">
+    <a href="/" aria-label="Dependable Painting Home">
+      <img src="https://imagedelivery.net/VwxTcpKX2CusqbCCDB94Nw/7c414308-e0a9-4da3-dd68-f9c4a6ed9800/icon512"
+           alt="Dependable Painting Logo" width="40" height="40">
+      <span>Dependable Painting</span>
+    </a>
+  </div>
+  <div class="nav-icons">
+    <div class="hours-toggle">
+      <a href="#"
+         title="Business Hours"
+         aria-label="Business Hours"
+         aria-expanded="false"
+         onclick="event.preventDefault(); toggleHoursPopup();">
+        <i class="fas fa-clock"></i>
       </a>
+      <div id="hoursPopup" role="tooltip" aria-hidden="true">
+        <strong>Hours:</strong><br>
+        Mon - Fri: 8:00am – 5:30pm<br>
+        Saturday: By Appointment<br>
+        Sunday: Closed
+      </div>
     </div>
-    <div class="nav-icons">
+    <a href="tel:+12512891347" title="Call Us" aria-label="Call Us">
+      <i class="fas fa-phone"></i>
+    </a>
+    <a href="https://g.page/r/CQjqan_iFBshEAE"
+       target="_blank"
+       rel="noopener noreferrer"
+       title="Find us on Google"
+       aria-label="Find us on Google">
+      <i class="fab fa-google"></i>
+    </a>
+    <div class="hamburger"
+         onclick="toggleMenu()"
+         aria-label="Open menu"
+         aria-expanded="false"
+         aria-controls="mobileMenu">
+      <span></span><span></span><span></span>
     </div>
-  </header>
+  </div>
+</header>
 
   <nav class="menu" id="mobileMenu" aria-hidden="true">
     <div class="close-btn" onclick="toggleMenu()" aria-label="Close menu">×</div>

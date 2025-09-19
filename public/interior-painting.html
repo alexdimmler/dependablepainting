@@ -61,12 +61,24 @@
 			--card-shadow-hover: 0 8px 20px rgba(255, 59, 59, 0.4);
 		}
 
-		*,
-		*::before,
-		*::after {
+		html { box-sizing: border-box; }
+
+		:root, body, header, main, footer, section, nav,
+		div, span, img, a, ul, li, ol, h1, h2, h3, h4, h5, h6,
+		p, figure, blockquote, dl, dd, button, input, textarea, form {
 			box-sizing: border-box;
+		}
+
+		body, h1, h2, h3, h4, h5, h6,
+		p, ul, ol, figure, blockquote, dl, dd {
 			margin: 0;
 			padding: 0;
+		}
+
+		img { display: block; max-width: 100%; height: auto; }
+
+		button, input, textarea, select {
+			font: inherit;
 		}
 
 		html {
