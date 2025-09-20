@@ -1,5 +1,3 @@
-// Cloudflare Email optional: removed direct import to avoid build error when 'cloudflare:email' types unavailable.
-
 /**
  * @typedef {Object} LeadEventBody
  * @property {string=} name
@@ -59,8 +57,7 @@
  * @param {number} [status=200]
  * @param {Record<string,string>} [headers={}]
  * @returns {Response}
- */
-function json(
+ */function json(
   data,
   status = 200,
   headers = {}
@@ -138,28 +135,58 @@ async function handleEstimate(env, request) {
   }
   let insertMeta;
   try {
+    // Optional: store contact details in estimates if the table exists
+    try {
+      await env.DB.prepare(
+        `INSERT INTO estimates (name, email, phone, service, details, page, session, source, utm_source, utm_medium, utm_campaign, gclid)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+      ).bind(
+        leadData.name,
+        leadData.email,
+        leadData.phone,
+        leadData.service,
+        leadData.message,
+        leadData.page,
+        leadData.session,
+        leadData.source,
+        leadData.utm_source,
+        leadData.utm_medium,
+        leadData.utm_campaign,
+        leadData.gclid
+      ).run();
+    } catch (_) { /* estimates table may not exist; ignore */ }
+
+    const nowIso = new Date().toISOString();
+    const day = nowIso.slice(0,10);
+    const hour = nowIso.slice(11,13);
     const res = await env.DB.prepare(
-      `INSERT INTO leads (name, email, phone, city, zip, service, page, session, source, message, utm_source, utm_medium, utm_campaign, gclid)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      `INSERT INTO lead_events (ts, day, hour, type, page, service, source, device, city, country, zip, area, session, scroll_pct, duration_ms, referrer, utm_source, utm_medium, utm_campaign, gclid)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
-      leadData.name,
-      leadData.email,
-      leadData.phone,
-      leadData.city,
-      leadData.zip,
-      leadData.service,
+      nowIso,
+      day,
+      hour,
+      'LeadSubmitted',
       leadData.page,
-      leadData.session,
+      leadData.service,
       leadData.source,
-      leadData.message,
-      leadData.utm_source,
-      leadData.utm_medium,
-      leadData.utm_campaign,
-      leadData.gclid
+      leadData.device || null,
+      leadData.city || null,
+      leadData.country || null,
+      leadData.zip || null,
+      leadData.area || null,
+      leadData.session || null,
+      0,
+      0,
+      leadData.referrer || null,
+      leadData.utm_source || null,
+      leadData.utm_medium || null,
+      leadData.utm_campaign || null,
+      leadData.gclid || null
     ).run();
     insertMeta = res.meta;
   } catch (e) {
-    console.error('D1 insert leads failed', e); // eslint-disable-line no-console
+    console.error('D1 insert lead_events failed', e); // eslint-disable-line no-console
     return json({ error: 'Database operation failed.' }, 500);
   }
   // Emails (optional)
@@ -205,7 +232,7 @@ async function handleEstimate(env, request) {
   } catch (e) {
     console.warn('Auto-reply email send failed', e); // eslint-disable-line no-console
   }
-  const lead_id = insertMeta?.last_row_id ? String(insertMeta.last_row_id) : undefined;
+  const event_id = insertMeta?.last_row_id ? String(insertMeta.last_row_id) : undefined;
   try {
     const gaParams = {
       page_location: leadData.page,
@@ -224,7 +251,7 @@ async function handleEstimate(env, request) {
     await sendToGA4(env, 'EstimateRequested', gaParams);
     await sendToGA4(env, 'LeadSubmitted', gaParams);
   } catch (_) { }
-  return json({ ok: true, success: true, lead_id, redirect: env.THANK_YOU_URL || '/thank-you' });
+  return json({ ok: true, success: true, event_id, redirect: env.THANK_YOU_URL || '/thank-you' });
 }
 
 // Generic form submission (lightweight, stores as lead_events type=LeadSubmitted and optionally email notify)
@@ -327,8 +354,8 @@ async function handleStats(env) {
   try {
     const events = await env.DB.prepare(
       `SELECT type, COUNT(*) as cnt FROM lead_events WHERE ts >= ? GROUP BY type ORDER BY cnt DESC`
-    ).bind(thirty).all(); // added generic
-    const leads = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM leads`).all();
+    ).bind(thirty).all();
+    const leads = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM lead_events WHERE type = 'LeadSubmitted'`).all();
     return json({ ok: true, event_counts: events.results || [], total_leads: (leads.results?.[0]?.cnt) || 0 });
   } catch (e) {
     return json({ error: 'db error' }, 500);
@@ -594,15 +621,23 @@ export default {
       // /api/lead/:id
       const id = pathname.split('/').pop();
       if (!id) return json({ error: 'id required' }, 400);
+      let row;
       try {
-        const row = await env.DB.prepare(
+        row = await env.DB.prepare(
           `SELECT id, name, email, phone, city, zip, service, page, source, session, message FROM leads WHERE id = ?`
         ).bind(id).first();
-        if (!row) return json({ ok: false, error: 'not found' }, 404);
-        return json({ ok: true, lead: row });
-      } catch (e) {
-        return json({ error: 'db error' }, 500);
+      } catch (_) { /* leads table may not exist */ }
+
+      if (!row) {
+        // Fallback to lead_events by id
+        const ev = await env.DB.prepare(
+          `SELECT id, ts, type, page, service, source, session, city, zip, utm_source, utm_medium, utm_campaign, gclid
+           FROM lead_events WHERE id = ?`
+        ).bind(id).first();
+        if (!ev) return json({ ok: false, error: 'not found' }, 404);
+        return json({ ok: true, lead: ev });
       }
+      return json({ ok: true, lead: row });
     }
     if (pathname === '/api/leads' && method === 'GET') {
       const url = new URL(request.url);
@@ -618,10 +653,23 @@ export default {
       if (q) { filters.push('(name LIKE ? OR email LIKE ? OR phone LIKE ?)'); args.push(`%${q}%`, `%${q}%`, `%${q}%`); }
       const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
       try {
-        const { results } = await env.DB.prepare(
-          `SELECT id, name, email, phone, city, zip, service, page, source, session, message
-           FROM leads ${where} ORDER BY id DESC LIMIT ? OFFSET ?`
-        ).bind(...args, limit, offset).all();
+        let results;
+        try {
+          const { results: r1 } = await env.DB.prepare(
+            `SELECT id, name, email, phone, city, zip, service, page, source, session, message
+             FROM leads ${where} ORDER BY id DESC LIMIT ? OFFSET ?`
+          ).bind(...args, limit, offset).all();
+          results = r1;
+        } catch (_) {
+          // Fallback: return recent LeadSubmitted events
+          const { results: r2 } = await env.DB.prepare(
+            `SELECT id, ts as created_at, type, page, service, source, session, city, zip, utm_source, utm_medium, utm_campaign, gclid
+             FROM lead_events
+             WHERE type = 'LeadSubmitted'
+             ORDER BY id DESC LIMIT ? OFFSET ?`
+          ).bind(limit, offset).all();
+          results = r2;
+        }
         return json({ ok: true, items: results });
       } catch (e) {
         return json({ error: 'db error' }, 500);
