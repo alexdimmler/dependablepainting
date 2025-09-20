@@ -1,6 +1,6 @@
 {
 	"name": "dependablepainting",
-	"main": "src/index.ts",
+	"main": "src/index.js",
 	"compatibility_date": "2025-08-29",
 	// Directory for static assets served via app.use('*', serveStatic())
 	"assets": { "directory": "./public" },
