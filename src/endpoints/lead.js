@@ -1,18 +1,11 @@
 import { OpenAPIRoute, Str } from "chanfana";
 import { z } from "zod";
 
-// Local AppContext definition (replaces missing ../types)
-export interface AppContext {
-  env: {
-    DB: {
-      prepare: (query: string) => {
-        bind: (...params: any[]) => {
-          first: () => Promise<any>;
-        };
-      };
-    };
-  };
-}
+/**
+ * @typedef {Object} AppContext
+ * @property {{ DB: { prepare: (query: string) => { bind: (...params:any[]) => { first: () => Promise<any> }}} }} env
+ */
+// (Replaced TypeScript interface with JSDoc typedef)
 
 export class LeadFetch extends OpenAPIRoute {
   schema = {
@@ -58,8 +51,8 @@ export class LeadFetch extends OpenAPIRoute {
     },
   };
 
-  async handle(c: AppContext) {
-    const data = await this.getValidatedData<typeof this.schema>();
+  async handle(/** @type {AppContext} */ c) {
+    const data = await this.getValidatedData(); // Removed TypeScript generic
     const { id } = data.params;
 
     const lead = await c.env.DB.prepare(
@@ -74,3 +67,8 @@ export class LeadFetch extends OpenAPIRoute {
     return { ok: true, lead };
   }
 }
+    if (!lead) {
+      return Response.json({ ok: false, error: "not found" }, { status: 404 });
+    }
+
+    return { ok: true, lead };

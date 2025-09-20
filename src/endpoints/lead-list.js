@@ -1,17 +1,9 @@
 import { OpenAPIRoute, Num, Str } from "chanfana";
 import { z } from "zod";
-// Local AppContext type (previously imported from ../types which did not exist)
-type AppContext = {
-  env: {
-    DB: {
-      prepare(query: string): {
-        bind(...params: unknown[]): {
-          all(): Promise<{ results: any[] }>
-        }
-      }
-    }
-  }
-};
+/**
+ * @typedef {Object} AppContext
+ * @property {{ DB: { prepare(query: string): { bind(...params: any[]): { all(): Promise<{results:any[]}> }}} }} env
+ */
 
 export class LeadsList extends OpenAPIRoute {
   schema = {
@@ -53,12 +45,15 @@ export class LeadsList extends OpenAPIRoute {
     },
   };
 
-  async handle(c: AppContext) {
-    const data = await this.getValidatedData<typeof this.schema>();
+  /**
+   * @param {AppContext} c
+   */
+  async handle(c) {
+    const data = await this.getValidatedData();
     const q = data.query;
 
-    const filters: string[] = [];
-    const args: unknown[] = [];
+    const filters = [];
+    const args = [];
 
     if (q.source) { filters.push("source = ?"); args.push(q.source); }
     if (q.city)   { filters.push("city = ?");   args.push(q.city);   }
@@ -79,3 +74,6 @@ export class LeadsList extends OpenAPIRoute {
     return { ok: true, items: results };
   }
 }
+    bind( args, limit, offset).all();
+
+    return { ok: true, items: results };

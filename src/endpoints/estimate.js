@@ -1,20 +1,9 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 /**
- * Local AppContext type added because ../types module was missing.
- * Adjust this definition to match your real runtime context.
+ * Expected context shape (informational only):
+ * c.env.DB.prepare(sql).bind(...).run() -> { meta: { last_row_id: number } }
  */
-type AppContext = {
-  env: {
-    DB: {
-      prepare: (sql: string) => {
-        bind: (...params: any[]) => {
-          run: () => Promise<{ meta: { last_row_id: number } }>
-        }
-      }
-    }
-  }
-};
 
 export class EstimateCreate extends OpenAPIRoute {
   schema = {
@@ -67,9 +56,9 @@ export class EstimateCreate extends OpenAPIRoute {
     },
   };
 
-  async handle(c: AppContext) {
+  async handle(c) {
     // Validate request
-    const data = await this.getValidatedData<typeof this.schema>();
+    const data = await this.getValidatedData();
     const b = data.body;
 
     // Insert into leads
@@ -123,3 +112,11 @@ export class EstimateCreate extends OpenAPIRoute {
     };
   }
 }
+        b.session ?? null,
+        1
+      run();
+
+    return {
+      ok: true,
+      lead_id: leadId,
+    };

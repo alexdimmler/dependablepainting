@@ -1,22 +1,19 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 
-// Local definition since ../types is missing
-export interface DB {
-  prepare(sql: string): {
-    bind(...params: any[]): {
-      run(): Promise<any>;
-    };
-  };
-}
-
-export interface AppEnv {
-  DB: DB;
-}
-
-export interface AppContext {
-  env: AppEnv;
-}
+// Local type definitions (converted from TS interfaces to JSDoc for JS compatibility)
+/**
+ * @typedef {Object} DB
+ * @property {(sql: string) => { bind: (...params: any[]) => { run: () => Promise<any> } }} prepare
+ */
+/**
+ * @typedef {Object} AppEnv
+ * @property {DB} DB
+ */
+/**
+ * @typedef {Object} AppContext
+ * @property {AppEnv} env
+ */
 
 /**
  * Tracking endpoint
@@ -70,9 +67,9 @@ export class TrackerCreate extends OpenAPIRoute {
     },
   };
 
-  async handle(c: AppContext) {
+  async handle(c) {
     // Validate payload
-    const data = await this.getValidatedData<typeof this.schema>();
+    const data = await this.getValidatedData(); // removed TypeScript generic
     const e = data.body;
 
     const ts = e.ts || new Date().toISOString();
@@ -100,3 +97,4 @@ export class TrackerCreate extends OpenAPIRoute {
     return { ok: true };
   }
 }
+    return { ok: true };

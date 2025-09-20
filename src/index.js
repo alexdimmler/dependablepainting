@@ -1,52 +1,87 @@
 // Cloudflare Email optional: removed direct import to avoid build error when 'cloudflare:email' types unavailable.
 
-// Simple utility to build JSON Response
+/**
+ * @typedef {Object} LeadEventBody
+ * @property {string=} name
+ * @property {string=} email
+ * @property {string=} phone
+ * @property {string=} city
+ * @property {string=} zip
+ * @property {string=} service
+ * @property {string=} page
+ * @property {string=} session
+ * @property {string=} source
+ * @property {string=} description
+ * @property {string=} message
+ * @property {string=} company
+ * @property {string=} device
+ * @property {string=} country
+ * @property {string=} area
+ * @property {string=} referrer
+ * @property {string=} type
+ * @property {number|string=} scroll_pct
+ * @property {number|string=} duration_ms
+ * @property {string=} ts
+ * @property {string=} utm_source
+ * @property {string=} utm_medium
+ * @property {string=} utm_campaign
+ * @property {string=} gclid
+ */
+
+/**
+ * @typedef {{ bind:(...v:any[])=>D1PreparedStatement, first:()=>Promise<any>, all:()=>Promise<{results:any[],success:boolean,meta:any}>, run:()=>Promise<{success:boolean,meta:any}> }} D1PreparedStatement
+ * @typedef {{ prepare:(q:string)=>D1PreparedStatement }} D1Database
+ * @typedef {{ send:(p:{from:string,to:string,subject:string,content?:string,html?:string})=>Promise<any> }} EmailService
+ * @typedef {Object} Env
+ * @property {D1Database} DB
+ * @property {D1Database=} DB_2
+ * @property {EmailService=} SEB
+ * @property {{ run:(o:any)=>Promise<any> }=} AI
+ * @property {string=} AI_MODEL
+ * @property {string=} AI_TEMP
+ * @property {string=} OPENAI_API_KEY
+ * @property {string=} OPENAI_MODEL
+ * @property {string=} OPENAI_TEMP
+ * @property {string=} THANK_YOU_URL
+ * @property {string=} FROM_ADDR
+ * @property {string=} ADMIN_EMAIL
+ * @property {string=} OWNER_EMAIL
+ * @property {string=} TO_ADDR
+ * @property {string=} SITE_NAME
+ * @property {string=} GA4_API_SECRET
+ *
+ * @typedef {{ waitUntil:(p:Promise<any>)=>void, passThroughOnException?:()=>void }} ExecutionContext
+ */
+
+/**
+ * Simple utility to build JSON Response
+ * @param {*} data
+ * @param {number} [status=200]
+ * @param {Record<string,string>} [headers={}]
+ * @returns {Response}
+ */
 function json(
-  data: unknown,
-  status: number = 200,
-  headers: Record<string, string> = {}
-): Response {
+  data,
+  status = 200,
+  headers = {}
+) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers }
   });
 }
 
-async function parseJSON<T = unknown>(request: Request): Promise<T | null> {
-  try { return await request.json() as T; } catch (_) { return null; }
+/**
+ * @template T
+ * @param {Request} request
+ * @returns {Promise<T|null>}
+ */
+async function parseJSON(request) {
+  try { return await request.json(); } catch (_) { return null; }
 }
 
-interface LeadEventBody {
-  // shared lead / event / tracking fields
-  name?: string;
-  email?: string;
-  phone?: string;
-  city?: string;
-  zip?: string;
-  service?: string;
-  page?: string;
-  session?: string;
-  source?: string;
-  description?: string;
-  message?: string;
-  company?: string;
-  device?: string;
-  country?: string;
-  area?: string;
-  referrer?: string;
-  type?: string;
-  scroll_pct?: number | string;
-  duration_ms?: number | string;
-  ts?: string;
-  // marketing params
-  utm_source?: string;
-  utm_medium?: string;
-  utm_campaign?: string;
-  gclid?: string;
-}
-
-async function handleEstimate(env: Env, request: Request) {
-  const body = (await parseJSON<LeadEventBody>(request)) || {};
+async function handleEstimate(env, request) {
+  const body = (await parseJSON(request)) || {};
   const leadData = {
     name: (body.name || '').trim(),
     email: (body.email || '').trim(),
@@ -149,8 +184,8 @@ async function handleEstimate(env: Env, request: Request) {
 }
 
 // Generic form submission (lightweight, stores as lead_events type=form_submit and optionally email notify)
-async function handleForm(env: Env, request: Request) {
-  const body = (await parseJSON<LeadEventBody>(request)) || {};
+async function handleForm(env, request) {
+  const body = (await parseJSON(request)) || {};
   const ts = new Date().toISOString();
   const page = (body.page || '/').toString().slice(0, 300);
   const session = (body.session || '').toString().slice(0, 120);
@@ -187,8 +222,8 @@ async function handleForm(env: Env, request: Request) {
 }
 
 // Call event (e.g., phone click) stored as type=click_call
-async function handleCall(env: Env, request: Request) {
-  const body = (await parseJSON<LeadEventBody>(request)) || {};
+async function handleCall(env, request) {
+  const body = (await parseJSON(request)) || {};
   const ts = new Date().toISOString();
   try {
     await env.DB.prepare(
@@ -221,15 +256,15 @@ async function handleCall(env: Env, request: Request) {
 }
 
 // Basic stats aggregation (last 30 days counts by type and total leads)
-async function handleStats(env: Env) {
+async function handleStats(env) {
   const thirty = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   try {
     const events = await env.DB.prepare(
       `SELECT type, COUNT(*) as cnt FROM lead_events WHERE ts >= ? GROUP BY type ORDER BY cnt DESC`
-    ).bind(thirty).all<{ type: string; cnt: number }>(); // added generic
+    ).bind(thirty).all(); // added generic
     const leads = await env.DB.prepare(
       `SELECT COUNT(*) as cnt FROM leads WHERE rowid IN (SELECT id FROM leads WHERE 1)`
-    ).all<{ cnt: number }>(); // added generic
+    ).all(); // added generic
     return json({ ok: true, event_counts: events.results || [], total_leads: (leads.results?.[0]?.cnt) || 0 });
   } catch (e) {
     return json({ error: 'db error' }, 500);
@@ -237,7 +272,7 @@ async function handleStats(env: Env) {
 }
 
 // Chat history fetch (last N messages for a session)
-async function handleChatHistory(env: Env, request: Request) {
+async function handleChatHistory(env, request) {
   const url = new URL(request.url);
   const session = url.searchParams.get('session') || '';
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 100);
@@ -252,8 +287,8 @@ async function handleChatHistory(env: Env, request: Request) {
   }
 }
 
-async function handleChat(env: Env, request: Request) {
-  const body = (await parseJSON<LeadEventBody>(request)) || {};
+async function handleChat(env, request) {
+  const body = (await parseJSON(request)) || {};
   const userMsg = (body.message || '').toString().slice(0, 8000);
   if (!userMsg) return json({ error: 'message required' }, 400);
   const systemPrompt = `You are Paint Guru, the expert operator and assistant for Dependable Painting. You:
@@ -330,8 +365,8 @@ async function handleChat(env: Env, request: Request) {
 // Tracking event ingestion
 // Accepts: { type, page?, service?, source?, device?, city?, country?, zip?, area?, session?, scroll_pct?, duration_ms?, referrer?, utm_source?, utm_medium?, utm_campaign?, gclid?, ts? }
 // If ts omitted, server time used. Stores row in lead_events and optionally forwards lightweight event to GA4.
-async function handleTrack(env: Env, request: Request) {
-  const body = (await parseJSON<LeadEventBody>(request)) || {};
+async function handleTrack(env, request) {
+  const body = (await parseJSON(request)) || {};
   const clientTs = typeof body.ts === 'string' ? body.ts : null;
   const now = clientTs ? new Date(clientTs) : new Date();
   const iso = now.toISOString();
@@ -416,7 +451,7 @@ async function handleTrack(env: Env, request: Request) {
   const measurement_id = 'G-CLK9PTRD5N';
   const api_secret = env.GA4_API_SECRET || '';
   const client_id = body.session || crypto.randomUUID();
-  const ga4Params: Record<string, unknown> = {
+  const ga4Params = {
     page_location: record.page || 'https://dependablepainting.work',
     page_referrer: record.referrer || '',
     session_id: record.session || '',
@@ -446,7 +481,7 @@ async function handleTrack(env: Env, request: Request) {
 // Not implemented placeholder JSON helper
 function notImpl() { return json({ success: false, message: 'Not implemented yet' }, 501); }
 
-async function serveStaticAsset(env: Env, pathname: string) {
+async function serveStaticAsset(env, pathname) {
   // Try to map to public directory (simple implementation using manifest-less fetch).
   let filePath = pathname === '/' ? '/index.html' : pathname;
   if (!filePath.includes('.')) {
@@ -461,49 +496,13 @@ async function serveStaticAsset(env: Env, pathname: string) {
   return new Response('Not Found', { status: 404 });
 }
 
-interface EmailService {
-  send(payload: { from: string; to: string; subject: string; content?: string; html?: string }): Promise<any>;
-}
-
-// Minimal D1 type stubs (remove if you install @cloudflare/workers-types)
-interface D1PreparedStatement {
-  bind(...values: unknown[]): D1PreparedStatement;
-  first<T = unknown>(): Promise<T | null>;
-  all<T = unknown>(): Promise<{ results: T[]; success: boolean; meta: any }>;
-  run<T = unknown>(): Promise<{ success: boolean; meta: any }>;
-}
-interface D1Database {
-  prepare(query: string): D1PreparedStatement;
-}
-
-interface Env {
-  DB: D1Database;
-  DB_2?: D1Database;
-  SEB?: EmailService;
-  AI?: { run(opts: any): Promise<any> };
-  AI_MODEL?: string;
-  AI_TEMP?: string;
-  OPENAI_API_KEY?: string;
-  OPENAI_MODEL?: string;
-  OPENAI_TEMP?: string;
-  THANK_YOU_URL?: string;
-  FROM_ADDR?: string;
-  ADMIN_EMAIL?: string;
-  OWNER_EMAIL?: string;
-  TO_ADDR?: string;
-  SITE_NAME?: string;
-  GA4_API_SECRET?: string;
-}
-
-// Minimal fallback definition for Cloudflare Workers ExecutionContext to satisfy TypeScript
-// Remove if you add:  npm i -D @cloudflare/workers-types  and a /// <reference types="@cloudflare/workers-types" />
-interface ExecutionContext {
-  waitUntil(promise: Promise<unknown>): void;
-  passThroughOnException?(): void;
-}
-
+/**
+ * @param {Request} request
+ * @param {Env} env
+ * @param {ExecutionContext} ctx
+ */
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext) { // eslint-disable-line no-unused-vars
+  async fetch(request, env, ctx) { // eslint-disable-line no-unused-vars
     const { pathname } = new URL(request.url);
     const method = request.method.toUpperCase();
 
