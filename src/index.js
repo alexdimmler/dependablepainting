@@ -67,7 +67,7 @@ function json(
 ) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers }
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', ...headers }
   });
 }
 
@@ -78,6 +78,28 @@ function json(
  */
 async function parseJSON(request) {
   try { return await request.json(); } catch (_) { return null; }
+}
+
+// ---- GA4 forwarder (business event names) ----
+async function sendToGA4(env, eventName, params) {
+  try {
+    const measurement_id = env.GA4_MEASUREMENT_ID || 'G-CLK9PTRD5N';
+    const api_secret = env.GA4_API_SECRET || env.GA4_API || '';
+    if (!measurement_id || !api_secret) return false; // silently skip if not configured
+    const client_id = params.session_id || crypto.randomUUID();
+    const payload = {
+      client_id,
+      timestamp_micros: Date.now() * 1000,
+      events: [{ name: eventName, params }]
+    };
+    const url = `https://www.google-analytics.com/mp/collect?measurement_id=${measurement_id}&api_secret=${api_secret}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.ok;
+  } catch (_) { return false; }
 }
 
 async function handleEstimate(env, request) {
@@ -117,8 +139,8 @@ async function handleEstimate(env, request) {
   let insertMeta;
   try {
     const res = await env.DB.prepare(
-      `INSERT INTO leads (name, email, phone, city, zip, service, page, session, source, message)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`
+      `INSERT INTO leads (name, email, phone, city, zip, service, page, session, source, message, utm_source, utm_medium, utm_campaign, gclid)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).bind(
       leadData.name,
       leadData.email,
@@ -129,7 +151,11 @@ async function handleEstimate(env, request) {
       leadData.page,
       leadData.session,
       leadData.source,
-      leadData.message
+      leadData.message,
+      leadData.utm_source,
+      leadData.utm_medium,
+      leadData.utm_campaign,
+      leadData.gclid
     ).run();
     insertMeta = res.meta;
   } catch (e) {
@@ -180,10 +206,28 @@ async function handleEstimate(env, request) {
     console.warn('Auto-reply email send failed', e); // eslint-disable-line no-console
   }
   const lead_id = insertMeta?.last_row_id ? String(insertMeta.last_row_id) : undefined;
+  try {
+    const gaParams = {
+      page_location: leadData.page,
+      service: leadData.service,
+      city: leadData.city,
+      zip: leadData.zip,
+      source: leadData.source,
+      utm_source: leadData.utm_source,
+      utm_medium: leadData.utm_medium,
+      utm_campaign: leadData.utm_campaign,
+      gclid: leadData.gclid,
+      session_id: leadData.session,
+      value: 0,
+      currency: 'USD'
+    };
+    await sendToGA4(env, 'EstimateRequested', gaParams);
+    await sendToGA4(env, 'LeadSubmitted', gaParams);
+  } catch (_) { }
   return json({ ok: true, success: true, lead_id, redirect: env.THANK_YOU_URL || '/thank-you' });
 }
 
-// Generic form submission (lightweight, stores as lead_events type=form_submit and optionally email notify)
+// Generic form submission (lightweight, stores as lead_events type=LeadSubmitted and optionally email notify)
 async function handleForm(env, request) {
   const body = (await parseJSON(request)) || {};
   const ts = new Date().toISOString();
@@ -197,7 +241,7 @@ async function handleForm(env, request) {
        VALUES (?, date(?), strftime('%H', ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       ts, ts, ts,
-      'form_submit',
+      'LeadSubmitted',
       page,
       service || null,
       source || null,
@@ -215,13 +259,24 @@ async function handleForm(env, request) {
       body.utm_campaign || null,
       body.gclid || null
     ).run();
+    try {
+      await sendToGA4(env, 'LeadSubmitted', {
+        page_location: page,
+        service: service || undefined,
+        session_id: session || undefined,
+        utm_source: body.utm_source || undefined,
+        utm_medium: body.utm_medium || undefined,
+        utm_campaign: body.utm_campaign || undefined,
+        gclid: body.gclid || undefined
+      });
+    } catch (_) { }
   } catch (e) {
     return json({ error: 'db error' }, 500);
   }
   return json({ ok: true });
 }
 
-// Call event (e.g., phone click) stored as type=click_call
+// Call event (e.g., phone click) stored as type=CallClicked
 async function handleCall(env, request) {
   const body = (await parseJSON(request)) || {};
   const ts = new Date().toISOString();
@@ -231,7 +286,7 @@ async function handleCall(env, request) {
        VALUES (?, date(?), strftime('%H', ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       ts, ts, ts,
-      'click_call',
+      'CallClicked',
       body.page || '/',
       body.service || null,
       body.source || null,
@@ -249,6 +304,17 @@ async function handleCall(env, request) {
       body.utm_campaign || null,
       body.gclid || null
     ).run();
+    try {
+      await sendToGA4(env, 'CallClicked', {
+        page_location: body.page || '/',
+        service: body.service || undefined,
+        session_id: body.session || undefined,
+        utm_source: body.utm_source || undefined,
+        utm_medium: body.utm_medium || undefined,
+        utm_campaign: body.utm_campaign || undefined,
+        gclid: body.gclid || undefined
+      });
+    } catch (_) { }
   } catch (e) {
     return json({ error: 'db error' }, 500);
   }
@@ -262,9 +328,7 @@ async function handleStats(env) {
     const events = await env.DB.prepare(
       `SELECT type, COUNT(*) as cnt FROM lead_events WHERE ts >= ? GROUP BY type ORDER BY cnt DESC`
     ).bind(thirty).all(); // added generic
-    const leads = await env.DB.prepare(
-      `SELECT COUNT(*) as cnt FROM leads WHERE rowid IN (SELECT id FROM leads WHERE 1)`
-    ).all(); // added generic
+    const leads = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM leads`).all();
     return json({ ok: true, event_counts: events.results || [], total_leads: (leads.results?.[0]?.cnt) || 0 });
   } catch (e) {
     return json({ error: 'db error' }, 500);
@@ -391,6 +455,9 @@ async function handleTrack(env, request) {
     utm_campaign: body.utm_campaign || '',
     gclid: body.gclid || ''
   };
+  // Map legacy snake events to business names for GA4 while storing business name in DB
+  const nameMap = { 'form_submit': 'LeadSubmitted', 'click_call': 'CallClicked' };
+  const businessType = nameMap[record.type] || record.type;
   try {
     await env.DB.prepare(
       `INSERT INTO lead_events (ts, day, hour, type, page, service, source, device, city, country, zip, area, session, scroll_pct, duration_ms, referrer, utm_source, utm_medium, utm_campaign, gclid)
@@ -399,7 +466,7 @@ async function handleTrack(env, request) {
       iso,
       day,
       hour,
-      record.type,
+      businessType,
       record.page,
       record.service,
       record.source,
@@ -425,7 +492,7 @@ async function handleTrack(env, request) {
         iso,
         day,
         hour,
-        record.type,
+        businessType,
         record.page,
         record.service,
         record.source,
@@ -448,8 +515,8 @@ async function handleTrack(env, request) {
     console.error('D1 insert lead_events failed', e); // eslint-disable-line no-console
     return json({ error: 'Database operation failed.' }, 500);
   }
-  const measurement_id = 'G-CLK9PTRD5N';
-  const api_secret = env.GA4_API_SECRET || '';
+  const measurement_id = env.GA4_MEASUREMENT_ID || 'G-CLK9PTRD5N';
+  const api_secret = env.GA4_API_SECRET || env.GA4_API || '';
   const client_id = body.session || crypto.randomUUID();
   const ga4Params = {
     page_location: record.page || 'https://dependablepainting.work',
@@ -464,7 +531,7 @@ async function handleTrack(env, request) {
   for (const k in ga4Params) {
     if (ga4Params[k] === undefined) delete ga4Params[k];
   }
-  const ga4Payload = { client_id, events: [{ name: body.type || 'event', params: ga4Params }] };
+  const ga4Payload = { client_id, events: [{ name: businessType || 'event', params: ga4Params }] };
   try {
     if (api_secret) {
       const url = `https://www.google-analytics.com/mp/collect?measurement_id=${measurement_id}&api_secret=${api_secret}`;
@@ -505,6 +572,16 @@ export default {
   async fetch(request, env, ctx) { // eslint-disable-line no-unused-vars
     const { pathname } = new URL(request.url);
     const method = request.method.toUpperCase();
+
+    if (method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204, headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
 
     // API routing
     if (pathname === '/api/estimate' && method === 'POST') return handleEstimate(env, request);
@@ -563,4 +640,3 @@ export default {
     return serveStaticAsset(env, pathname);
   }
 };
-
