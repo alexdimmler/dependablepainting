@@ -1,6 +1,5 @@
 // Requires dependency: npm install zod
 import { z } from "zod";
-import { OpenAPIRoute } from "../lib/chanfana-shim";
 interface LeadCreateBody {
   name?: string;
   email?: string;
@@ -49,7 +48,7 @@ interface EstimateCreateResponse {
   lead_id: string;
 }
 
-export class EstimateCreate extends OpenAPIRoute {
+export class EstimateCreate {
   schema = {
     tags: ["Leads"],
     summary: "Create a lead from the contact form",
