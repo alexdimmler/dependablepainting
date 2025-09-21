@@ -5,7 +5,6 @@ import { z } from "zod";
  * @typedef {Object} AppContext
  * @property {{ DB: { prepare: (query: string) => { bind: (...params:any[]) => { first: () => Promise<any> }}} }} env
  */
-// (Replaced TypeScript interface with JSDoc typedef)
 
 export class LeadFetch extends OpenAPIRoute {
   schema = {
@@ -51,7 +50,7 @@ export class LeadFetch extends OpenAPIRoute {
     },
   };
 
-  async handle(/** @type {AppContext} */ c) {
+  async handle(/** @type {AppContext} */ c: any): Promise<any> {
     const data = await this.getValidatedData(); // Removed TypeScript generic
     const { id } = data.params;
 
@@ -67,8 +66,3 @@ export class LeadFetch extends OpenAPIRoute {
     return { ok: true, lead };
   }
 }
-    if (!lead) {
-      return Response.json({ ok: false, error: "not found" }, { status: 404 });
-    }
-
-    return { ok: true, lead };

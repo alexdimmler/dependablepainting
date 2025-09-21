@@ -1,9 +1,53 @@
-import { OpenAPIRoute } from "chanfana";
+// Requires dependency: npm install zod
 import { z } from "zod";
-/**
- * Expected context shape (informational only):
- * c.env.DB.prepare(sql).bind(...).run() -> { meta: { last_row_id: number } }
- */
+import { OpenAPIRoute } from "../lib/chanfana-shim";
+interface LeadCreateBody {
+  name?: string;
+  email?: string;
+  phone?: string;
+  city?: string;
+  zip?: string;
+  service?: string;
+  message?: string;
+  page?: string;
+  source?: string;
+  session?: string;
+}
+
+interface ValidatedData {
+  body: LeadCreateBody;
+}
+
+interface DBRunMeta {
+  last_row_id: number;
+}
+
+interface DBRunResult {
+  meta: DBRunMeta;
+}
+
+interface PreparedStatement {
+  bind(...values: (string | null)[]): PreparedStatement;
+  run(): Promise<DBRunResult>;
+}
+
+interface DB {
+  prepare(sql: string): PreparedStatement;
+}
+
+interface Env {
+  DB: DB;
+}
+
+interface Context {
+  enDB: any;
+  env: Env;
+}
+
+interface EstimateCreateResponse {
+  ok: true;
+  lead_id: string;
+}
 
 export class EstimateCreate extends OpenAPIRoute {
   schema = {
@@ -24,7 +68,7 @@ export class EstimateCreate extends OpenAPIRoute {
               page: z.string().default("/contact-form").optional(),
               source: z.string().max(120).optional(),
               session: z.string().max(120).optional()
-            }).refine((v) => !!(v.phone || v.email), {
+            }).refine(v => (v.phone || v.email), {
               message: "phone or email required"
             }),
           },
@@ -55,15 +99,16 @@ export class EstimateCreate extends OpenAPIRoute {
       },
     },
   };
+  getValidatedData: any;
 
-  async handle(c) {
+  async handle(c: Context): Promise<EstimateCreateResponse> {
     // Validate request
-    const data = await this.getValidatedData();
-    const b = data.body;
+    const data = await this.getValidatedData() as ValidatedData;
+    const b: LeadCreateBody = data.body;
 
     // Insert into leads
     // Adjust the SQL/columns if your migration differs.
-    const res = await c.env.DB.prepare(
+    const res: DBRunResult = await c.enDB.prepare(
       `INSERT INTO leads
        (name,email,phone,city,zip,service,page,session,source,message)
        VALUES (?,?,?,?,?,?,?,?,?,?)`
@@ -82,11 +127,11 @@ export class EstimateCreate extends OpenAPIRoute {
       )
       .run();
 
-    const leadId = String(res.meta.last_row_id);
+    const leadId: string = String(res.meta.last_row_id);
 
     // Log event for attribution
-    const ts = new Date().toISOString();
-    await c.env.DB.prepare(
+    const ts: string = new Date().toISOString();
+    await c.enDB.prepare(
       "INSERT INTO lead_events (ts, day, hour, type, page, service, source, device, city, country, zip, area, session, scroll_pct) " +
       "VALUES (?, date(?), strftime('%H', ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
@@ -112,11 +157,3 @@ export class EstimateCreate extends OpenAPIRoute {
     };
   }
 }
-        b.session ?? null,
-        1
-      run();
-
-    return {
-      ok: true,
-      lead_id: leadId,
-    };

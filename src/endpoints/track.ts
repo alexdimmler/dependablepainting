@@ -67,7 +67,7 @@ export class TrackerCreate extends OpenAPIRoute {
     },
   };
 
-  async handle(c) {
+  async handle(/** @type {AppContext} */ c: any): Promise<any> {
     // Validate payload
     const data = await this.getValidatedData(); // removed TypeScript generic
     const e = data.body;
@@ -97,4 +97,3 @@ export class TrackerCreate extends OpenAPIRoute {
     return { ok: true };
   }
 }
-    return { ok: true };

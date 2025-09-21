@@ -12,16 +12,21 @@
     "migrate:apply:db2": "wrangler d1 migrations apply DB_2 || true",
     "migrate:list": "wrangler d1 migrations list DB",
     "types": "wrangler types",
-    "preview": "wrangler dev --remote --test-scheduled"
+    "preview": "wrangler dev --remote --test-scheduled",
+    "build": "tsc",
+    "dev:watch": "tsx watch src/index.ts"
   },
   "dependencies": {
     "chanfana": "^2.8.2",
     "openai": "^5.20.1",
-    "swiper": "^11.2.10"
+    "swiper": "^11.2.10",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240821.0",
     "miniflare": "^3.20250718.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
     "wrangler": "^4.35.0"
   }
 }
